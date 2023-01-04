@@ -1,44 +1,38 @@
-name: Windows 10 ( Tối Đa 6H )
-on: workflow_dispatch
+name: Window
+
+on:
+  workflow_dispatch:
 
 jobs:
   build:
-
     runs-on: windows-latest
-    timeout-minutes: 9999
-
     steps:
-
-    - name: Tải Ngrok
-      run: |
-        Invoke-WebRequest https://raw.githubusercontent.com/adtitas/ngrok-rdp/main/resources/ngrok.zip -OutFile ngrok.zip
-        Invoke-WebRequest https://raw.githubusercontent.com/adtitas/ngrok-rdp/main/resources/start.bat -OutFile start.bat
-        Invoke-WebRequest https://raw.githubusercontent.com/adtitas/ngrok-rdp/main/resources/winrar.exe -OutFile winrar.exe
-    - name: Giải Nén Ngrok
-      run: Expand-Archive ngrok.zip
-
-    - name: Kết nối Ngrok Token
-      run: .\ngrok\ngrok.exe authtoken $Env:NGROK_AUTH_TOKEN
-      env:
-        NGROK_AUTH_TOKEN: ${{ secrets.NGROK_AUTH_TOKEN }}
-
-    - name: Bật Quyền Truy Cập RDP 
-      run: |
-        Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server'-name "fDenyTSConnections" -Value 0
-        Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
-        Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -name "UserAuthentication" -Value 1
-        copy winrar.exe C:\Users\Public\Desktop\winrar.exe
+      - name: download ngrok
+        shell: powershell
+        run: |
+          Invoke-WebRequest https://bin.equinox.io/c/4VmDzA7iaHb/ngrok-stable-windows-amd64.zip -OutFile ngrok.zip
+          Expand-Archive ngrok.zip
+      - name: run ngrok
+        shell: powershell
+        run: |
+          .\ngrok\ngrok.exe authtoken $Env:NGROK_AUTH_TOKEN
+          Start-Process Powershell -ArgumentList '-Noexit -Command ".\ngrok\ngrok.exe tcp 3389"'
+        env:
+          NGROK_AUTH_TOKEN: ${{ secrets.NGROK_AUTH_TOKEN }}
+          
+      - name: Activating RDP access.
+        run: | 
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server'-name "fDenyTSConnections" -Value 0
+          Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -name "UserAuthentication" -Value 1
         
-    - name: Tạo Tunnel
-      run: Start-Process Powershell -ArgumentList '-Noexit -Command ".\ngrok\ngrok.exe tcp 3389"'
-
-    - name: Địa chỉ kết nối RDP  [CPU 2 Core - 7GB Ram - 256 SSD]
-      run: cmd /c start.bat
-
-    - name: Cài đặt Winrar
-      run: cmd /c C:\Users\Public\Desktop\winrar.exe winrar.exe /s
-      
-    - name: Giữ VPS Hoạt Động (Tối Đa 6H Và Hết TG Thì VPS Sẽ Mất Hết DATA)
-      run: |
-        Invoke-WebRequest https://raw.githubusercontent.com/adtitas/ngrok-rdp/main/resources/loop.ps1 -OutFile loop.ps1
-        ./loop.ps1
+      - name: Change pass for RDP.
+        env: 
+          ADMINPASSWORD: ${{ secrets.ADMINPASSWORD }}
+        run: net user runneradmin $Env:ADMINPASSWORD
+        
+      - name: Get Ngrok 
+        run: Invoke-WebRequest http://localhost:4040/api/tunnels
+        
+      - name: Run loop
+        run: ping -t localhost
